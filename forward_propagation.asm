@@ -3,8 +3,8 @@
 %define HIDDEN       2
 %define OUTPUTS      1
 ; temporary
-%define IXH_M INPUTS * HIDDEN
-%define HXO_M HIDDEN * OUTPUTS
+%assign IXH_M INPUTS * HIDDEN
+%assign HXO_M HIDDEN * OUTPUTS
 
 
 section .bss
@@ -17,7 +17,7 @@ section .bss
     weight_output resd HXO_M    ; OUTPUTS * HIDDEN
     bias_output   resd OUTPUTS  ; OUTPUTS
     hidden_r      resd HIDDEN   ; HIDDEN
-    output_r      resd OUTPUTS  ; OUTPUTS
+    output_r      resd 4        
 
     ; Temporary variables for loop counter, stroring temporary data
     s     resd 1
@@ -27,11 +27,90 @@ section .bss
     ti    resd 1
     sum   resd 1
 
+
+section .data
+    filename     db "xorModel.txt", 0
+    out_filename db "xorOut.txt",   0
+    xor_inputs   dd 0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0
+
+
 section .text
-global _start
+    global _start
 
 _start:
-    ; forword pass
+    ; loading file xorModel.txt
+    mov eax, 5
+    mov ebx, filename
+    xor ecx, ecx
+    int 0x80
+    mov esi, eax
+
+    mov eax, 3
+    mov ebx, esi
+    mov ecx, weight_hidden
+    mov edx, 16
+    int 0x80
+
+    mov eax, 3
+    mov ebx, esi
+    mov ecx, bias_hidden
+    mov edx, 8
+    int 0x80
+    
+    mov eax, 3
+    mov ebx, esi
+    mov ecx, weight_output
+    mov edx, 8
+    int 0x80
+    
+    mov eax, 3
+    mov ebx, esi
+    mov ecx, bias_output
+    mov edx, 4
+    int 0x80
+    
+    mov eax, 6
+    mov ebx, esi
+    int 0x80
+    
+    ; load inputs
+    mov esi, xor_inputs
+    mov edi, input
+    mov ecx, 8
+.copy_input:
+    mov eax, [esi]
+    mov [edi], eax
+    add esi, 4
+    add edi, 4
+    dec ecx
+    jnz .copy_input
+
+    call forward_propagation
+
+    ; load result in file
+    mov eax, 5
+    mov ebx, out_filename
+    mov ecx, 577
+    mov edx, 0644
+    int 0x80
+    mov edi, eax
+
+    mov eax, 4
+    mov ebx, edi
+    mov ecx, output_r
+    mov edx, 16
+    int 0x80
+
+    mov eax, 6
+    mov ebx, edi
+    int 0x80
+
+    mov eax, 1
+    xor ebx, ebx
+    int 0x80
+
+; forword pass
+forward_propagation:
     mov dword [s], 0 ; s = 0
 
 .outer_loop_s:
@@ -65,7 +144,7 @@ _start:
     mov esi, input
     mov ecx, [s]
     mov ebx, [j]
-    mov edx, 4     ; input column 
+    mov edx, INPUTS     ; input column 
     call matrix_data_from_index
     mov [ti], eax
 
@@ -155,15 +234,13 @@ _start:
 .done_loop_j_o:
     fld dword [sum]
     call sigmoid
-
-    mov ebx, [i]
+    mov ebx, [s]
     fstp dword [output_r + ebx * 4] 
 
     mov eax, [i]
     inc eax
     mov [i], eax
     jmp .inner_loop_i_o
-
 
 .done_loop_i_o:
 
@@ -173,9 +250,8 @@ _start:
     jmp .outer_loop_s
 
 .done:
-    mov eax, 1
-    xor ebx, ebx
-    int 0x80
+    ret
+
 
 
 ; -------------------------------------
@@ -186,8 +262,8 @@ _start:
 ; -------------------------------------    
 sigmoid:
     ; fraction of x
-    fld     st0         ; duplicate x → ST0=x, ST1=x
     fchs                ; ST0 = -x
+    fld     st0         ; duplicate x → ST0=x, ST1=x
     fld     st0         ; duplicate -x → ST0=-x, ST1=-x, ST2=x
     frndint             ; ST0 = int(-x), ST1 = -x
     fxch                ; swap → ST0 = -x, ST1 = int(-x)
@@ -212,7 +288,7 @@ sigmoid:
     ret
 
 
-; -------------------------------------
+; -----̥--------------------------------
 ; Function: matrix_data_from_index
 ; Input : 
 ;       esi = pointer to the matrix
