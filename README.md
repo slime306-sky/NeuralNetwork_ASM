@@ -51,21 +51,21 @@ Use the provided `script.py` to read the output in a human-friendly format.
 
 ### Show the result:
 ```bash
-python script.py result
+python script.py result.txt
 ```
 
 ### Show the input (model):
 ```bash
-python script.py output
+python script.py model.txt
 ```
 
 ### Show both:
 ```bash
-python script.py result output
+python script.py result.txt model.txt
 ```
 or
 ```bash
-python script.py output result
+python script.py model.txt result.txt
 ```
 
 Either order works — script's chill like that 😄
