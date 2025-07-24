@@ -41,6 +41,7 @@ Yep, you read that right — neural nets *without* Python, TensorFlow, or magic 
    ```
 
    This will run the neural network and output the results to a file called `result.txt` in float raw bytes.
+   Note: If `result.txt` file is not created please create the file than run the asm.
 
 ---
 
