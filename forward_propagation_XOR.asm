@@ -31,8 +31,8 @@ section .bss
     fd    resd 1
 
 section .data
-    filename     db "xorModel.txt", 0
-    out_filename db "xorOut.txt",   0
+    filename     db "model.txt", 0
+    out_filename db "result.txt", 0
     xor_inputs   dd 0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0
 
     ;temp weight and bias
