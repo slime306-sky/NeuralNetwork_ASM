@@ -2,13 +2,13 @@
 %define INPUTS       2
 %define HIDDEN       2
 %define OUTPUTS      1
+
 ; temporary
 %assign IXH_M INPUTS * HIDDEN
 %assign HXO_M HIDDEN * OUTPUTS
 
 
-section .bss
-    
+section .bss    
     ; Variable's that are used for storing thing like weight, bias and other values
     input         resd 8        ; XOR gate have 00 01 10 11
     target        resd 4        ; XOR gate ans  0  1  1  0
@@ -26,45 +26,53 @@ section .bss
     tw    resd 1
     ti    resd 1
     sum   resd 1
+    a     resd 1
 
+    fd    resd 1
 
 section .data
     filename     db "xorModel.txt", 0
     out_filename db "xorOut.txt",   0
     xor_inputs   dd 0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0
 
+    ;temp weight and bias
+    d_weight_hidden dd -7.3061485, -7.3277073, -9.589272, -9.705681
+    d_bias_hidden   dd 11.037739, 4.0157437
+    d_weight_output dd 13.255704, -13.261149
+    d_bias_output   dd -6.4398603
 
 section .text
     global _start
 
 _start:
+    
     ; loading file xorModel.txt
     mov eax, 5
     mov ebx, filename
     xor ecx, ecx
     int 0x80
-    mov esi, eax
+    mov [fd], eax
 
     mov eax, 3
-    mov ebx, esi
+    mov ebx, [fd]
     mov ecx, weight_hidden
     mov edx, 16
     int 0x80
 
     mov eax, 3
-    mov ebx, esi
+    mov ebx, [fd]
     mov ecx, bias_hidden
     mov edx, 8
     int 0x80
     
     mov eax, 3
-    mov ebx, esi
+    mov ebx, [fd]
     mov ecx, weight_output
     mov edx, 8
     int 0x80
     
     mov eax, 3
-    mov ebx, esi
+    mov ebx, [fd]
     mov ecx, bias_output
     mov edx, 4
     int 0x80
@@ -73,6 +81,34 @@ _start:
     mov ebx, esi
     int 0x80
     
+    ; This loads the weights and biases from the data section into the bss section
+    ; mov eax, [d_weight_hidden]
+    ; mov [weight_hidden], eax
+
+    ; mov eax, [d_weight_hidden + 4]
+    ; mov [weight_hidden + 4], eax
+
+    ; mov eax, [d_weight_hidden + 8]
+    ; mov [weight_hidden + 8], eax
+
+    ; mov eax, [d_weight_hidden + 12]
+    ; mov [weight_hidden + 12], eax
+
+    ; mov eax, [d_bias_hidden]
+    ; mov [bias_hidden], eax
+
+    ; mov eax, [d_bias_hidden + 4]
+    ; mov [bias_hidden + 4], eax
+
+    ; mov eax, [d_weight_output]
+    ; mov [weight_output], eax
+
+    ; mov eax, [d_weight_output + 4]
+    ; mov [weight_output + 4], eax
+
+    ; mov eax, [d_bias_output]
+    ; mov [bias_output], eax
+
     ; load inputs
     mov esi, xor_inputs
     mov edi, input
@@ -83,8 +119,8 @@ _start:
     add esi, 4
     add edi, 4
     dec ecx
-    jnz .copy_input
-
+    jnz .copy_input  
+              
     call forward_propagation
 
     ; load result in file
@@ -104,7 +140,8 @@ _start:
     mov eax, 6
     mov ebx, edi
     int 0x80
-
+    jmp .done
+.done:
     mov eax, 1
     xor ebx, ebx
     int 0x80
@@ -126,11 +163,12 @@ forward_propagation:
     jge .done_loop_i_h
 
     ; i loop things hidden layer
+
+    mov eax, [i]
+    shl eax, 2
     mov esi, bias_hidden
-    mov ecx, 0
-    mov ebx, [i]
-    mov edx, HIDDEN
-    call matrix_data_from_index
+    add esi, eax
+    mov eax, [esi]
     mov [sum], eax
 
     mov dword [j], 0 ; j = 0
@@ -155,12 +193,10 @@ forward_propagation:
     call matrix_data_from_index
     mov [tw], eax
 
-    fld dword [tw]
-    fld dword [ti]
-    fmul 
-    fld dword [sum]
-    fadd
-    fstp dword [sum] 
+    fld dword [ti]     ; ST(0) = ti
+    fmul dword [tw]    ; ST(0) = ti * tw
+    fadd dword [sum]   ; ST(0) = sum + (ti * tw)
+    fstp dword [sum]   ; Store result
 
     mov eax, [j]
     inc eax
@@ -168,11 +204,12 @@ forward_propagation:
     jmp .inner_loop_j_h
 
 .done_loop_j_h:
+    finit
     fld dword [sum]
     call sigmoid
-
     mov ebx, [i]
     fstp dword [hidden_r + ebx * 4] 
+    finit
 
     mov eax, [i]
     inc eax
@@ -189,11 +226,12 @@ forward_propagation:
     jge .done_loop_i_o
 
     ; i loop things output layer
+    mov eax, [i]
+    shl eax, 2
     mov esi, bias_output
-    mov ecx, 0
-    mov ebx, [i]
-    mov edx, OUTPUTS
-    call matrix_data_from_index
+    add esi, eax
+    mov eax, [esi]
+    
     mov [sum], eax
 
     mov dword [j], 0
@@ -204,11 +242,11 @@ forward_propagation:
     jge .done_loop_j_o
 
     ; do stuff for j output layer
+    mov eax, [j]
+    shl eax, 2
     mov esi, hidden_r
-    mov ecx, 0
-    mov ebx, [j]
-    mov edx, HIDDEN
-    call matrix_data_from_index
+    add esi, eax
+    mov eax, [esi]
     mov [ti], eax
 
     mov esi, weight_output
@@ -232,10 +270,12 @@ forward_propagation:
 
 
 .done_loop_j_o:
+    finit
     fld dword [sum]
     call sigmoid
     mov ebx, [s]
     fstp dword [output_r + ebx * 4] 
+    finit
 
     mov eax, [i]
     inc eax
@@ -252,8 +292,6 @@ forward_propagation:
 .done:
     ret
 
-
-
 ; -------------------------------------
 ; Function : sigmoid
 ; Input    : st0 = x
@@ -261,32 +299,27 @@ forward_propagation:
 ; Uses     : Maths;  actual sigmoid : 1 / (1 + (e ^ -x)); we used 1 / (1 + (2 ^ -x)) 
 ; -------------------------------------    
 sigmoid:
-    ; fraction of x
-    fchs                ; ST0 = -x
-    fld     st0         ; duplicate x → ST0=x, ST1=x
-    fld     st0         ; duplicate -x → ST0=-x, ST1=-x, ST2=x
-    frndint             ; ST0 = int(-x), ST1 = -x
-    fxch                ; swap → ST0 = -x, ST1 = int(-x)
-    fsub                ; ST0 = -x - int(-x) = fractional part of -x = frac(-x)
+    ; Input:  ST0 = x
+    ; Output: ST0 = sigmoid(x) = 1 / (1 + e^(-x))
+    fld st0                 ; duplicate x
+    frndint                 ; round to int
+    fxch                    ; swap
+    fsub st0, st1           ; get fractional part
+    f2xm1                   ; compute 2^frac - 1
+    fld1
+    faddp st1, st0          ; 2^frac
+    fxch
+    frndint                 ; get int again
+    fxch
+    fscale                  ; scale by 2^int
+    fstp dword [a]          ; store a = 2^x
 
-    ; 2^frac
-    f2xm1               ; st0 = 2^st0 - 1 
-    fld1                ; st0 = 1.0f, st1 = 2^st0 - 1
-    fadd                ; st0 = 2^frac
-
-    ; 2^int * 2^frac
-    fxch                ; st0 = int, st1 = 2^frac
-    fscale              ; st0 = 2^(-x) = 2^int * 2^frac
-    fstp    st1         ; remove st1, st0 = 2^(-x)
-
-    fld1                ; st0 = 1, st1 = 2^(-x)
-    fadd                ; st0 = 1 + 2^(-x)
-
-    fld1                ; st0 = 1, st1 = 1 + 2^(-x)
-    fdiv                ; st0 = 1 / (1 + (2 ^ -x))
-
+    fld dword [a]           ; load a
+    fld st0                 ; duplicate
+    fld1
+    faddp st1, st0          ; a + 1
+    fdivp st1, st0          ; a / (a + 1)
     ret
-
 
 ; -----̥--------------------------------
 ; Function: matrix_data_from_index
